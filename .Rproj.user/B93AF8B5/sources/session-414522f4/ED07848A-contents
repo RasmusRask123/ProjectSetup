@@ -1,0 +1,1159 @@
+#####################################
+### Kjersti's internal validation ###
+#####################################
+library(survival)
+library(survminer)
+library(tidyverse)
+library(ggplot2)
+library(writexl)
+library(haven)
+library(freqtables)
+######################
+### Specifications ###
+######################
+ayear <- 365.25
+height <-  2160
+width <- 3840
+res = 300
+
+#################
+### Functions ###
+#################
+kaplan_meier_fkt <- function(fit=NULL,time="time",status="status",
+                             covariate="",data,title="",
+                             breakNR=1,pval = T,
+                             remove_xaxis=F,
+                             remove_Yaxis = F,xlimm=1,
+                             remove_AXIS_ticks=F,
+                             remove_Y_AXIS_ticks=F,leg_name="",leg_pos="bottom",
+                             remove_X_AXIS_ticks=F){
+ 
+  #making outcome and covariate part of formula argument
+  outcome <- paste0("Surv(",time,",",status,")~")
+  cov_form <- paste0(covariate,collapse = "+")
+  
+  #combinning to final formula
+  form <- formula(paste0(outcome,cov_form))
+  
+  fit1 <- survfit(formula = form,data=data)
+  
+
+  if (!is.null(fit)) {
+    fit1 <- fit   
+    
+  }else{
+    fit1$call$formula <- form
+  }
+  if (covariate=="1") {
+    legned <- "All Patients"
+  }else{
+    if (is.null(names(fit1$strata)) ) {
+      legned <- data[,covariate] %>% unique()
+    }else{
+    legned <- names(fit1$strata)
+    legned <- str_remove(legned,pattern = paste0(covariate,"="))
+    }
+  }
+  
+  if (remove_xaxis) {
+    xlab <- ""  
+  }else(
+    xlab <- "Time (Years)"  
+  )
+  if (remove_Yaxis) {
+    ylab <- ""  
+  }else(
+    ylab <- "Probability"  
+  )
+  
+  if (leg_pos!="bottom") {
+    leg_pos <- "none" 
+  }
+  
+
+  p1 <- ggsurvplot(fit1,
+             title = title,
+             data = data,
+             xlab=xlab,
+             ylab= ylab,
+             # change the fonts for ticks
+             font.tickslab=30,
+             censor.shape="",
+             censor.size = 4,
+             pval = pval,
+             pval.size=10,
+             #pval.method=T,
+             # Change legends: title & labels
+             legend.title = leg_name,
+             legend.labs = legned,
+             legend = leg_pos,
+             # Add p-value and tervals
+             conf.int = T,
+             size=2,
+             xlim = c(0,5*xlimm),
+             break.time.by = 1*breakNR,
+             #xscale=c("d_y"),
+             # Add risk table
+             risk.table = T,
+             tables.height = 0.20,
+             font.size=50,
+             
+             tables.theme =theme_survminer(
+               font.legend=c(20) )+
+               theme(
+                 axis.text.y.left = element_text(size = 20)
+                     
+                     )+
+               theme_cleantable(),
+             palette = c("jco"),
+             fontsize = 10,
+             ggtheme =  theme_survminer(
+               font.legend = c(20),
+               font.main = c(20)
+             )+
+               theme_bw()+
+               theme(#axis.title = element_blank(),
+                     #axis.title.x =  element_blank(),
+                     axis.ticks = element_blank(),
+                     axis.line = element_blank(),
+                     
+                    legend.position = "bottom",
+                     legend.key.size = unit(1,"cm"),
+                     legend.text = element_text(size=50),
+                     axis.title.y = element_text(size=30),
+                     #axis.ticks = element_blank(),
+                     axis.text.y = element_text(size=30),
+                     axis.title.x = element_text(size=30),
+                     axis.text.x = element_text(size=30),
+                     panel.background = element_blank(),
+                     text = element_text(size=20),
+                     plot.title = element_text(hjust=0.5,size = 30) ))
+  
+  if (remove_AXIS_ticks) {
+    p1$plot <- p1$plot +
+      theme(
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank()
+      )
+  }
+  if (remove_X_AXIS_ticks) {
+    p1$plot <- p1$plot +
+      theme(
+        #axis.text.y = element_blank(),
+        axis.text.x = element_blank()
+      )
+  }
+  if (remove_Y_AXIS_ticks) {
+    p1$plot <- p1$plot +
+      theme(
+        axis.text.y = element_blank(),
+        #axis.text.x = element_blank()
+      )
+  }
+  return(p1$plot)
+}
+# kaplan_meier_fkt(time = "PFS_trunc",
+#                  status = "PFS_status",
+#                  covariate = "New_score",
+#                  data = df_new,
+#                  title = "PFS - All Patients",
+#                  remove_xaxis = F,
+#                  remove_Yaxis = F,
+#                  remove_X_AXIS_ticks = T)+theme(plot.title = element_text(hjust = 0))
+# 
+
+#################
+### Load data ###
+#################
+#df_full <- read_sav("Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Data/Datasett for cox_reg_analysis_and_data_ driven_analysis.sav") %>% as.data.frame()
+df_full <- read_sav("Data/Variabler til Cox reg and cross validation.sav") %>% as.data.frame()
+
+
+
+df_new<- data.frame(
+  PFS_status=ifelse(as.numeric(df_full$PFS_status_5_year)==1,yes=0,no=1),
+  PFS_trunc=as.numeric(df_full$PFS_time_5_year),
+  status_trunc=as.numeric(ifelse(df_full$Status_5_year_OS==1,yes=0,no=1)),
+  OS_trunc=as.numeric(df_full$OS_5_year),
+  
+  PFS_status_full= ifelse(df_full$PFS_status==1,yes=0,1),
+  PFS=as.numeric(df_full$PFS_time),
+  OS=as.numeric(df_full$Survival_time),
+  status=ifelse(df_full$Status_live_death==0,yes=1,no=0),
+  
+  New_score = case_when(
+         df_full$Fit_unfit_frail_frailty_score==1~"Fit",
+         df_full$Fit_unfit_frail_frailty_score==2~"Unfit",
+         df_full$Fit_unfit_frail_frailty_score==3~"Frail"
+       ) %>% factor(levels = c("Fit","Unfit","Frail")),
+  Risk_groups=ifelse(df_full$Risk_groups==1,yes="Limited",no="Advanced"),
+  DOX_dose=ifelse(df_full$Dose_doxo_initialt_gruppe==1,yes="100-80%",no="79-50%") %>% factor(levels = c("100-80%","79-50%")),
+  Respons=case_when(
+    df_full$Respons_and_TRM==1~"CR",
+    df_full$Respons_and_TRM==2~"PR",
+    df_full$Respons_and_TRM==3~"SD",
+    df_full$Respons_and_TRM==4~"PD",
+    df_full$Respons_and_TRM==5~"Unknown",
+    df_full$Respons_and_TRM==6~"TRM",
+  ) %>% factor(levels=c("CR","PR","SD","PD","Unknown","TRM")),
+  
+  Age=factor(df_full$To_kategori_over_under_70),
+  Sex=df_full$Gender %>% as.factor(),
+  Stage=df_full$Stadium %>% as.factor(),
+  CIRSG=as.factor(df_full$CIRS_G),
+  ECOG=factor(df_full$Cox.ECOG),
+  Smoke=df_full$Smoking_univariat_cox_reg,
+  ADL=as.numeric(df_full$Activity_daily_living) %>% as.factor(),
+  BMI=as.numeric(df_full$Two_div_categorie_BMI) %>% as.factor(),
+  Histology=df_full$Histology %>% as.factor(),
+  Bsymp=as.factor(df_full$A_B),
+  Age_cont=df_full$Age,
+  ECOG_cont=df_full$ECOG %>% as.numeric(),
+  CIRSG_cont=df_full$CIRS_G_tot
+  
+  
+  )
+#Removing pts with missing OS
+df_new <- df_new %>% filter(!is.na(OS_trunc) )
+df_new <- df_new %>% as.data.frame()
+
+
+
+#########################################
+### Restricting to Specific variables ###
+#########################################
+# #Exstracting vairbales and renaming
+# df_new <- data.frame(
+#   df_full,
+#   #PFS_status=df_full$PFS_status,
+#   #PFS=as.numeric(df_full$PFS_time)*ayear,
+#   #status=df_full$Status_live_death,
+#   #OS=df_full$Survival_time*ayear %>% as.numeric,
+#   Age=df_full$Alder,
+#   #Age_grp=df_full$Age_groups %>% as.factor(),
+#   Sex=df_full$Gender %>% as.factor(),
+#   #Stage=df_full$Stadium %>% as.factor(),
+#   #BMI=df_full$BMI1,
+#   #Log_BMI=log(df_full$BMI1),
+#   CIRSG=df_full$CIRS_G_tot,
+#   ECOG=ifelse(df_full$ECOG==4,3,df_full$ECOG) %>% as.factor(),
+#   #New_score =df_full$Fit_unfit_frail_frailty_score,
+#   New_score = case_when(
+#     df_full$Fit_unfit_frail_frailty_score==1~"Fit",
+#     df_full$Fit_unfit_frail_frailty_score==2~"Unfit",
+#     df_full$Fit_unfit_frail_frailty_score==3~"Frail"
+#   ),
+#   Treatment=case_when(
+#     df_full$Treatment_in_three_groups==1~"CHOP",
+#     df_full$Treatment_in_three_groups==2~"All others",
+#     df_full$Treatment_in_three_groups==3~"ABVD",
+#   ),
+#   #DOX_dose=ifelse(df_full$Dose_doxo_initialt_gruppeDoxo_dose_cox_reg==1,yes="50-69",no="70-100")
+#   )
+
+
+
+png(filename ="Figures and tables/New/OS_all_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+    )
+kaplan_meier_fkt(time = "OS_trunc",
+                 status = "status_trunc",
+                 covariate = "New_score",
+                 data = df_new,
+                 title = "OS - All Patients",
+                 remove_xaxis = T,
+                 remove_AXIS_ticks = T,
+                 remove_Yaxis = T
+)
+dev.off()
+png(filename ="Figures and tables/New/PFS_all_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+kaplan_meier_fkt(time = "PFS_trunc",
+                 status = "PFS_status",
+                 covariate = "New_score",
+                 data = df_new,
+                 title = "PFS - All Patients",
+                 remove_xaxis = T,
+                 remove_Yaxis = F,
+                 remove_AXIS_ticks = T
+                 )
+dev.off()
+
+
+
+
+###################
+### Risk groups ###
+###################
+avd_df <- df_new %>% filter(Risk_groups=="Advanced")
+Lim_df <- df_new %>% filter(Risk_groups=="Limited")
+
+#Advance stage pts
+png(filename ="Figures and tables/New/OS_advance_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+kaplan_meier_fkt(time = "OS_trunc",
+                 status = "status_trunc",
+                 covariate = "New_score",
+                 data = avd_df,
+                 remove_Yaxis = T,
+                 remove_AXIS_ticks = F,
+                 remove_Y_AXIS_ticks = T,
+                 title = "Advanced")
+dev.off()
+png(filename ="Figures and tables/New/PFS_advance_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+kaplan_meier_fkt(time = "PFS_trunc",
+                 status = "PFS_status",
+                 covariate = "New_score",
+                 data = avd_df,
+                 title = "Advanced")
+dev.off()
+
+# Limited
+png(filename ="Figures and tables/New/OS_Limited_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+kaplan_meier_fkt(time = "OS_trunc",
+                 status = "status_trunc",
+                 covariate = "New_score",
+                 data = Lim_df,pval=T,
+                 title = "Limited",
+                 remove_xaxis = T,
+                 remove_X_AXIS_ticks = T,
+                 remove_Y_AXIS_ticks = T)
+dev.off()
+
+png(filename ="Figures and tables/New/PFS_Limited_pts.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+kaplan_meier_fkt(time = "PFS_trunc",
+                 status = "PFS_status",
+                 covariate = "New_score",
+                 data = Lim_df,
+                 title = "Limited",
+                 remove_xaxis = T,
+                 remove_X_AXIS_ticks = T)
+dev.off()
+
+###----
+p1 <- kaplan_meier_fkt(time = "OS_trunc",
+                       status = "status_trunc",
+                       covariate = "New_score",
+                       data = df_new,
+                       title = "Overall survival",
+                       remove_xaxis = T,
+                       remove_AXIS_ticks = T,
+                       remove_Yaxis = T)+
+  theme(plot.title = element_text(hjust = 0.5,size=50))
+
+p2 <-kaplan_meier_fkt(time = "PFS_trunc",
+                      status = "PFS_status",
+                      covariate = "New_score",
+                      data = df_new,
+                      title = "Progression-free survival",
+                      remove_xaxis = T,
+                      remove_Yaxis = F,
+                      remove_X_AXIS_ticks = T)+
+  theme(plot.title = element_text(hjust = 0.5,size=50))
+
+p3 <- kaplan_meier_fkt(time = "OS_trunc",
+                       status = "status_trunc",
+                       covariate = "New_score",
+                       data = avd_df,
+                       remove_Yaxis = T,
+                       remove_AXIS_ticks = F,
+                       remove_Y_AXIS_ticks = T,
+                       title = "")+theme(plot.title = element_text(hjust = 0))
+p4 <-  kaplan_meier_fkt(time = "PFS_trunc",
+                        status = "PFS_status",
+                        covariate = "New_score",
+                        data = avd_df,
+                        title = "")+theme(plot.title = element_text(hjust = 0))
+
+p5 <-  kaplan_meier_fkt(time = "OS_trunc",
+                        status = "status_trunc",
+                        covariate = "New_score",
+                        data = Lim_df,pval=T,
+                        title = "",
+                        remove_xaxis = T,remove_Yaxis = T,
+                        remove_X_AXIS_ticks = T,
+                        remove_Y_AXIS_ticks = T)+theme(plot.title = element_text(hjust = 0))
+p6 <-kaplan_meier_fkt(time = "PFS_trunc",
+                      status = "PFS_status",
+                      covariate = "New_score",
+                      data = Lim_df,
+                      title = "",
+                      remove_xaxis = T,
+                      remove_X_AXIS_ticks = T)+theme(plot.title = element_text(hjust = 0))
+
+library(ggpubr)
+png(filename ="Figures and tables/New/Combinned.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+ggarrange(p2,p1,
+          p6,p5,
+          p4,p3,
+          ncol = 2,labels = c("A","","B","","C"),font.label = list(size=30),
+          nrow=3,
+          common.legend = T,
+          legend = "bottom")
+dev.off()
+
+
+
+#################
+### COX stuff ###
+#################
+library(gtsummary)
+fit1 <- coxph(Surv(OS_trunc,status_trunc)~New_score,df_new)
+fit2 <- coxph(Surv(PFS_trunc,PFS_status_trunc)~New_score,df_new)
+
+fit3 <- coxph(Surv(OS_trunc,status_trunc)~New_score,avd_df)
+fit4 <- coxph(Surv(PFS_trunc,PFS_status_trunc)~New_score,avd_df)
+
+fit5 <- coxph(Surv(OS_trunc,status_trunc)~New_score,Lim_df)
+fit6 <- coxph(Surv(PFS_trunc,PFS_status_trunc)~New_score,Lim_df)
+
+tbl_regression(fit1,exponentiate = T,add_estimate_to_reference_rows = T) 
+tbl_regression(fit2,exponentiate = T,add_estimate_to_reference_rows = T)
+tbl_regression(fit3,exponentiate = T,add_estimate_to_reference_rows = T)
+tbl_regression(fit4,exponentiate = T,add_estimate_to_reference_rows = T)
+tbl_regression(fit5,exponentiate = T,add_estimate_to_reference_rows = T)
+tbl_regression(fit6,exponentiate = T,add_estimate_to_reference_rows = T)
+
+summary(fit1)
+summary(fit2)
+
+summary(fit3)
+summary(fit4)
+summary(fit5)
+summary(fit6)
+###############
+### C_index ###
+###############
+library(survC1)
+library(writexl)
+output_time_OS <-   "OS_trunc"
+output_status_OS <- "status_trunc"
+output_time_PFS <-   "PFS_trunc"
+output_status_PFS <- "PFS_status_trunc"
+
+c_df <- df_new %>% filter(!is.na(New_score))
+
+c_index_OS <- Est.Cval(cbind(c_df[, c(output_time_OS,output_status_OS)], c_df$Fit_unfit_frail_frailty_score),
+                       tau = 5*ayear, nofit = T)$Dhat
+c_index_PFS <- Est.Cval(cbind(c_df[, c(output_time_PFS,output_status_PFS)], c_df$Fit_unfit_frail_frailty_score),
+                        tau = 5*ayear, nofit = T)$Dhat
+C_index <- data.frame(Cindex_OS=c_index_OS,Cindex_PFS=c_index_PFS)
+write_xlsx(C_index,path = "Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/New/C_indeXX.xlsx")
+
+##################
+### Continouse ###
+##################
+fit7 <- coxph(Surv(OS_trunc,status_trunc)~Alder+CIRS_G+ECOG,df_new)
+fit8 <- coxph(Surv(PFS_trunc,PFS_status_trunc)~Alder+CIRS_G+ECOG,df_new)
+fit7_sum <- summary(fit7)
+fit8_sum <-summary(fit8)
+
+cont_cindex_df <- data.frame(C_index_OS_continouse=fit7_sum$concordance[1],
+           C_index_PFS_continouse=fit8_sum$concordance[1]
+           )
+write_xlsx(cont_cindex_df,path = "Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/New/C_index_Continouse.xlsx")
+
+
+#################
+### Treatment ###
+#################
+avd_df <- df_new %>% filter(Risk_groups==2)
+Lim_df <- df_new %>% filter(Risk_groups==1)
+
+#advance stage
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/OS_advanced_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+kaplan_meier_fkt(time = "OS",status = "status",covariate = "Treatment",data = avd_df,title = "OS - Advanced",breakNR = 5)
+dev.off()
+
+
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/PFS_advanced_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "Treatment",data = avd_df,title = "PFS - Advanced",breakNR = 5)
+dev.off()
+
+#Limited
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/OSS_limited_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+kaplan_meier_fkt(time = "OS",status = "status",covariate = "Treatment",data = Lim_df,title = "OS - Limited",breakNR = 5)
+dev.off()
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/PFS_Limited_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+
+kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "Treatment",data = Lim_df,title = "PFS - Limited",breakNR = 5)
+dev.off()
+#All pts
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/OSS_ALL_pts_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+kaplan_meier_fkt(time = "OS",status = "status",covariate = "Treatment",data = df_new,title = "OS - All Patients",breakNR = 5)
+dev.off()
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/PFS_ALL_pts_Treatemnt.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+
+kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "Treatment",data = df_new,title = "PFS - All Patients",breakNR = 5)
+dev.off()
+
+p11 <- kaplan_meier_fkt(time = "OS",status = "status",covariate = "1",data = df_new,title = "OS - All Patients",breakNR = 5)
+p12 <- kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "1",data = df_new,title = "PFS - All Patients",breakNR = 5)
+
+p13 <- kaplan_meier_fkt(time = "OS",status = "status",covariate = "1",data = avd_df,title = "OS - Advanced",breakNR = 5)
+p14 <- kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "1",data = avd_df,title = "PFS - Advanced",breakNR = 5)
+
+p15 <- kaplan_meier_fkt(time = "OS",status = "status",covariate = "1",data = Lim_df,title = "OS - Limited",breakNR = 5)
+p16 <- kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "1",data = Lim_df,title = "PFS - Limited",breakNR = 5)
+
+p17 <- kaplan_meier_fkt(time = "OS",status = "status",covariate = "Treatment",data = avd_df,title = "OS - Advanced",breakNR = 5)
+p18 <- kaplan_meier_fkt(time = "PFS",status = "PFS_status",covariate = "Treatment",data = avd_df,title = "PFS - Advanced",breakNR = 5)
+
+
+png(filename ="Q:/AUH-HAEM-EpiProjects/046_NLPHL_CHL_Norge_Rasmus_rask/Predictive model/Figures and tables/Combinned_treatment.png",
+    height=height*4,
+    width=width*2,
+    res=res
+)
+ggarrange(p12$plot,p11$plot,
+          p16$plot,p15$plot,
+          p14$plot,p13$plot,
+          p18$plot,p17$plot,
+          ncol = 2,nrow=4,
+          common.legend = T,legend = "bottom")
+dev.off()
+
+############################
+### DOSE of doxorubercin ###
+############################
+avd_fit_df <- df_new %>% filter(Risk_groups=="Advanced"  & New_score=="Fit")
+avd_unfit_df <- df_new %>% filter(Risk_groups=="Advanced"& New_score=="Unfit")
+avd_frail_df <- df_new %>% filter(Risk_groups=="Advanced"& New_score=="Frail")
+
+lim_fit_df <- df_new %>% filter(Risk_groups == "Limited"   & New_score == "Fit")
+lim_unfit_df <- df_new %>% filter(Risk_groups == "Limited" & New_score == "Unfit")
+lim_frail_df <- df_new %>% filter(Risk_groups == "Limited" & New_score == "Frail")
+
+
+
+p111 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = avd_fit_df,
+    remove_Yaxis = T,
+    remove_xaxis = T,
+    remove_AXIS_ticks = T,
+    title = "PFS - Advanced - Fit",leg_name = "Initial Doxorubicin doses"
+  )+theme(plot.title = element_text(hjust = 0))
+p112 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = avd_unfit_df,remove_Yaxis = T,
+    remove_xaxis = T,
+    remove_AXIS_ticks = T,
+    
+    title = "PFS - Advanced - Unfit"
+  )+theme(plot.title = element_text(hjust = 0))
+p113 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = avd_frail_df,
+    remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+    title = "PFS - Advanced - Frail"
+  )+theme(plot.title = element_text(hjust = 0))
+
+p114 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = lim_fit_df,remove_X_AXIS_ticks = T,remove_xaxis = T,
+    title = "PFS - Limited - Fit"
+  )+theme(plot.title = element_text(hjust = 0))
+p115 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = lim_unfit_df,remove_X_AXIS_ticks = T,remove_xaxis = T,
+    title = "PFS - Limited - Unfit"
+  )+theme(plot.title = element_text(hjust = 0))
+p116 <-  kaplan_meier_fkt(
+    time = "PFS_trunc",
+    status = "PFS_status",
+    covariate = "DOX_dose",
+    data = lim_frail_df,
+    title = "PFS - Limited - Frail"
+  )+theme(plot.title = element_text(hjust = 0))
+
+
+png(filename ="Figures and tables/New/Combinned_DOXO_PFS.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+ggarrange(p114,p111,
+          p115,p112,
+          p116,p113,
+          ncol = 2,nrow=3,
+          legend.grob = get_legend(p111),
+          labels = c("A","","B","","C"),font.label = list(size=30),
+          common.legend = T,legend = "bottom")
+dev.off()
+
+
+### OS
+p111 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = avd_fit_df,
+  remove_Yaxis = T,
+  remove_xaxis = T,
+  remove_AXIS_ticks = T,
+  title = "OS - Advanced - Fit",
+  leg_name = "Initial Doxorubicin doses"
+)+theme(plot.title = element_text(hjust = 0))
+p112 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = avd_unfit_df,remove_Yaxis = T,
+  remove_xaxis = T,
+  remove_AXIS_ticks = T,
+  
+  title = "OS - Advanced - Unfit"
+)+theme(plot.title = element_text(hjust = 0))
+p113 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = avd_frail_df,
+  remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+  title = "OS - Advanced - Frail"
+)+theme(plot.title = element_text(hjust = 0))
+
+p114 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = lim_fit_df,remove_X_AXIS_ticks = T,remove_xaxis = T,
+  title = "OS - Limited - Fit"
+)+theme(plot.title = element_text(hjust = 0))
+p115 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = lim_unfit_df,remove_X_AXIS_ticks = T,remove_xaxis = T,
+  title = "OS - Limited - Unfit"
+)+theme(plot.title = element_text(hjust = 0))
+p116 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = lim_frail_df,
+  title = "OS - Limited - Frail"
+)+theme(plot.title = element_text(hjust = 0))
+
+
+png(filename ="Figures and tables/New/Combinned_DOXO_OS.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+ggarrange(p114,p111,
+          p115,p112,
+          p116,p113,
+          ncol = 2,nrow=3,legend.grob = get_legend(p111),labels = c("A","","B","","C"),font.label = list(size=30),
+          common.legend = T,legend = "bottom")
+dev.off()
+
+
+######################
+### Doxorubersin 2 ###
+######################
+fit_df <- df_new %>% filter(New_score=="Fit")
+unfit_df <- df_new %>% filter(New_score=="Unfit")
+frail_df <- df_new %>% filter( New_score=="Frail")
+
+
+p111 <-  kaplan_meier_fkt(
+  time = "PFS_trunc",
+  status = "PFS_status",
+  covariate = "DOX_dose",
+  data = fit_df,
+  remove_Yaxis = F,
+  remove_xaxis = T,
+  remove_Y_AXIS_ticks = F,
+  remove_X_AXIS_ticks = T,
+  #remove_AXIS_ticks = T,
+  title = "Progression-free survival",
+  leg_name = "Initial Doxorubicin doses"
+)+theme(plot.title = element_text(hjust = 0.5,size=50),
+        legend.title =element_text(size=50))
+
+p112 <-  kaplan_meier_fkt(
+  time = "PFS_trunc",
+  status = "PFS_status",
+  covariate = "DOX_dose",
+  data = unfit_df,
+  remove_Yaxis = F,
+  remove_xaxis = T,
+  remove_Y_AXIS_ticks = F,
+  remove_X_AXIS_ticks = T,
+
+  
+  title = ""
+)+theme(plot.title = element_text(hjust = 0.5,size=50))
+p113 <-  kaplan_meier_fkt(
+  time = "PFS_trunc",
+  status = "PFS_status",
+  covariate = "DOX_dose",
+  data = frail_df,
+  remove_Yaxis = F,
+  remove_Y_AXIS_ticks = F,
+  
+  title = ""
+)+theme(plot.title = element_text(hjust = 0))
+
+#OS
+p114 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = fit_df,
+  remove_X_AXIS_ticks = T,
+  remove_Yaxis = T,
+  remove_Y_AXIS_ticks = T,
+  remove_xaxis = T,
+  title = "Overall survival"
+)+theme(plot.title = element_text(hjust = 0.5,size=50))
+p115 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  data = unfit_df,
+  remove_X_AXIS_ticks = T,
+  remove_Yaxis = T,
+  remove_Y_AXIS_ticks = T,
+  remove_xaxis = T,
+  title = ""
+)+theme(plot.title = element_text(hjust = 0.5))
+p116 <-  kaplan_meier_fkt(
+  time = "OS_trunc",
+  status = "status_trunc",
+  covariate = "DOX_dose",
+  remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+  data = frail_df,
+  title = ""
+)+theme(plot.title = element_text(hjust = 0.5))
+
+
+png(filename ="Figures and tables/New/Combinned_DOXO_OS_PFS.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+ggarrange(p111,p114,
+          p112,p115,
+          p113,p116,
+          ncol = 2,nrow=3,
+          legend.grob = get_legend(p111),
+          labels = c("A","","B","","C"),
+          font.label = list(size=30),
+          common.legend = T,legend = "bottom")
+dev.off()
+
+
+
+########################
+### Respons Barplots ###
+########################
+#barplot med overall, limited og advanced 
+
+LIM_bar_df <- df_new %>% filter(Risk_groups == "Limited")
+AVD_bar_df <- df_new %>% filter(Risk_groups == "Advanced")
+
+LIM_bar_df %>% group_by(Respons) %>% count()
+AVD_bar_df %>% group_by(Respons) %>% count()
+df_new %>% freq_table(Respons)%>% mutate(Respons=cat)
+
+
+bar_plot_fkt <- function(df,title="",remove_respons=F,remove_xlabs=F,
+                         axis.text.x = element_text(angle = 45, hjust = 1),
+                         axis.text.y=element_text(size=30)){
+  
+  
+  response_df <- df %>% freq_table(Respons)%>%
+    mutate(Respons=factor(cat,levels=c("CR","PR","SD","PD","TRM","Unknown") ))
+  
+
+  # Define JCO color palette
+  jco_colors <- c("#0073c2FF", "#EFc000FF", "#868686FF", "#CD534cff", "#7AA6dcff", "#003c67ff")
+  
+  
+  if (remove_respons) {
+    xlab <- ""
+  }else{
+    xlab <- "Responses"
+  }
+  
+  # Create a bar plot with confidence intervals using ggplot2
+  pp <- ggplot(response_df, aes(x = Respons, y = percent, fill = Respons)) +
+    geom_bar(stat = "identity", color = "black") +
+    ylim(c(0,100))+
+    geom_errorbar(aes(ymin = lcl , ymax = ucl ), 
+                  width = 0.4,                    # Width of error bars
+                  position = position_dodge(0.9)) +  # Dodge position to align with bars
+    labs(title = title,
+         x = xlab,
+         y = "Percentage") +
+    theme_minimal() +
+    theme(axis.text.x = axis.text.x,
+          axis.text.y = axis.text.y,
+          axis.title.x = element_text(size=30),
+          axis.title.y = element_text(size=30)) +
+    scale_fill_manual(values = jco_colors)
+  
+  
+  return(pp)
+}
+
+p1 <- bar_plot_fkt(df =df_new,title="",remove_respons = T,axis.text.x = element_blank() )
+p2 <- bar_plot_fkt(df =LIM_bar_df,title="",remove_respons = T,axis.text.x = element_blank() )
+p3 <- bar_plot_fkt(df =AVD_bar_df,title="",axis.text.x = element_text(angle = 45, hjust = 1,size=30) )
+
+png(filename ="Figures and tables/New/Barplots.png",
+    height=height*2,
+    width=width,
+    res=res
+)
+ggarrange(p1,p2,p3,
+          ncol = 1,
+          common.legend = T,
+          labels = c("A","B","C"),font.label = list(size=22),
+          legend = "none")
+dev.off()
+
+
+#make the table for the bar plot
+all <- df_new %>% freq_table(Respons)%>% mutate(Respons=cat,Patients="All")
+lim <- LIM_bar_df %>% freq_table(Respons)%>% mutate(Respons=cat,Patients="Limited")
+acd <- AVD_bar_df %>% freq_table(Respons)%>% mutate(Respons=cat,Patients="Advanced")
+
+bar_df <- rbind(all,lim,acd)
+write_xlsx(bar_df,path = "./Figures and tables/New/Barplot_numbers.xlsx")
+
+
+####################################
+### Overall OS/PFS pr risk group ###
+####################################
+LIM_bar_df <- df_new %>% filter(Risk_groups == "Limited")
+AVD_bar_df <- df_new %>% filter(Risk_groups == "Advanced")
+
+
+### All pts
+p1_all_OS <-  kaplan_meier_fkt(
+  time = "OS",
+  status = "status",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = df_new,
+  remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+  remove_xaxis = T,
+  remove_X_AXIS_ticks = T,
+  title = "Overall survival",
+  leg_name = " ",leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0.5,size=50))
+p1_all_PFS <-  kaplan_meier_fkt(
+  time = "PFS",
+  status = "PFS_status_full",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = df_new,
+  remove_Yaxis = F,
+  remove_xaxis = T,
+  remove_X_AXIS_ticks = T,
+  title = "Progression-free survival",
+  leg_name = " ",
+  leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0.5,size=50))
+
+
+### limited
+p2_lim_OS <-  kaplan_meier_fkt(
+  time = "OS",
+  status = "status",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = LIM_bar_df,
+  remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+  remove_xaxis = T,
+  remove_X_AXIS_ticks = T,
+  title = "",
+  leg_name = " ",leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0))
+p2_lim_PFS <-  kaplan_meier_fkt(
+  time = "PFS",
+  status = "PFS_status_full",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = LIM_bar_df,
+  remove_Yaxis = F,
+  remove_xaxis = T,
+  remove_X_AXIS_ticks = T,
+  title = "",
+  leg_name = " ",
+  leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0))
+
+### Advanced
+p3_avd_OS <-  kaplan_meier_fkt(
+  time = "OS",
+  status = "status",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = AVD_bar_df,
+  remove_Yaxis = T,remove_Y_AXIS_ticks = T,
+  remove_xaxis = F,
+  remove_X_AXIS_ticks = F,
+  title = "",
+  leg_name = " ",leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0))
+p3_avd_PFS <-  kaplan_meier_fkt(
+  time = "PFS",
+  status = "PFS_status_full",breakNR = 5,xlimm = 4,
+  covariate = "1",
+  data = AVD_bar_df,
+  remove_Yaxis = F,
+  remove_xaxis = F,
+  remove_X_AXIS_ticks = F,
+  title = "",
+  leg_name = " ",
+  leg_pos = "none"
+)+theme(plot.title = element_text(hjust = 0))
+
+png(filename ="Figures and tables/New/all_pts_pr_riskGroup.png",
+    height=height*3,
+    width=width*2,
+    res=res
+)
+ggarrange(p1_all_PFS,p1_all_OS,
+          p2_lim_PFS,p2_lim_OS,
+          p3_avd_PFS,p3_avd_OS,
+          
+          ncol = 2,nrow=3,labels = c("A","","B","","C"),font.label = list(size=30)
+          )
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####################################
+### Uni multi internalvalidation ###
+####################################
+source("Scripts/Functions_script.R")
+
+
+nfolds <- 10
+
+covariate <- c("Age",
+               "Age_cont",
+               "Sex",
+               "ECOG_cont",
+               "CIRSG_cont",
+               "BMI",
+               "CIRSG",
+               "ECOG",
+               "ADL",
+               "Stage",
+               "Smoke",
+               "Bsymp",
+               "Histology",
+               "Risk_groups",
+               "DOX_dose"
+               
+)
+
+output_time_OS <-   "OS_trunc"
+output_status_OS <- "status_trunc"
+output_time_PFS <-   "PFS_trunc"
+output_status_PFS <- "PFS_status"
+evalTimes <- seq(0,5,1/365)
+
+library(mice)
+X <- df_new %>% select(covariate)
+Y <- df_new %>% select(output_time_OS,output_status_OS,output_time_PFS,output_status_PFS)
+
+### Imputatiohn 
+imputation_model <- mice(X, method = c("cart"))
+# Perform imputation
+X_imp <- complete(imputation_model)
+#Fullyimputed dataset
+df_imputed <- cbind(Y,X_imp) %>% as.data.frame()
+
+### Cross-validation----
+cv_performance_OS <- CV_performance_UNI_MULTI(Data =df_imputed,
+                                    nfolds = nfolds,
+                                    covariate = covariate,
+                                    output_time =output_time_OS,
+                                    output_status = output_status_OS,
+                                    evalTimes = evalTimes)
+
+cv_performance_PFS <- CV_performance_UNI_MULTI(Data =df_imputed,
+                                              nfolds = nfolds,
+                                              covariate = covariate,
+                                              output_time =output_time_PFS,
+                                              output_status = output_status_PFS,
+                                              evalTimes = evalTimes)
+
+### C-index----
+
+c_index_OS <- cv_performance_OS$Uni_multi$c_index
+c_index_PFS <- cv_performance_PFS$Uni_multi$c_index
+C_index <- data.frame(Cindex_OS=c_index_OS,Cindex_PFS=c_index_PFS)
+
+#saving
+write_xlsx(C_index,path = "./Figures and tables/New/C_index.xlsx")
+
+
+### Calibration----
+cal_uni_multi <- Cal_plot_combinned_fkt(input_data = cv_performance_OS$TestData,
+                                        Prediction_OS = cv_performance_OS$Predicted_probabilities$Uni_multi,
+                                        Prediction_PFS = cv_performance_PFS$Predicted_probabilities$Uni_multi,
+                                        time = 5,
+                                        EvalTimes = evalTimes)
+cal_2 <- cal_plot_fkt_2(Cal_data =cal_uni_multi ,Title = "Calibration curve Uni-Multivariate")
+
+### Timevarying AUC----
+df_OS <- data.frame(Time=evalTimes,
+                  uni_multi=as.numeric(cv_performance_OS$Uni_multi$AUC))
+df_PFS <- data.frame(Time=evalTimes,
+                  uni_multi=as.numeric(cv_performance_PFS$Uni_multi$AUC))
+
+AUC_p1 <- time_var_AUC_2(df_OS,ayear = 1,Title = "Time-varying AUC - OS")
+AUC_p2 <- time_var_AUC(df_PFS,ayear = 1,Title = "Time-varying AUC - PFS")
+
+png(filename ="Figures and tables/New/Time_var_AUC.png",
+    height=height*1.5,
+    width=width,
+    res=res
+)
+ggarrange(AUC_p1,AUC_p2,common.legend = T,legend = "none")
+dev.off()
+
+
+###################
+### Final model ###
+###################
+final_model_PFS <- final_model_fkt(Data = df_imputed,
+                                   covariate = covariate,
+                                   output_time =output_time_PFS,
+                                   output_status = output_status_PFS)
+final_model_OS <- final_model_fkt(Data = df_imputed,
+                                  covariate = covariate,
+                                  output_time =output_time_OS,
+                                  output_status = output_status_OS)
+
+
+coxph(Surv(Survival_time,Status_live_death==0)~Age+Gender+CIRS_G_tot+A_B+Stadium+Smoking_univariat_cox_reg,df_full) %>% summary()
+
+
+
+################
+### Survival ###
+################
+df_full$PFS_status2 <- ifelse(df_full$PFS_status==1,yes=0,no=1)
+library(gtsummary)
+#Opgaver
+#5YR OS og PFS
+tbl_survfit(
+  survfit(Surv(PFS_trunc,PFS_status)~New_score,df_new),
+  times = c(5),
+  label_header = "**{time} Years PFS**"
+)
+tbl_survfit(
+  survfit(Surv(OS_trunc,status_trunc)~New_score,df_new),
+  times = c(5),
+  label_header = "**{time} Years OS**"
+)
+
+#Follow-up for newscore
+fit_newscore <- survfit(Surv(Survival_time,Status_live_death==0)~Fit_unfit_frail_frailty_score,df_full)
+tbl_survfit(
+  fit_newscore,
+  probs=0.5,
+  label_header = "**Median followup years (95% CI)**"
+)
+
+
+
+#Total follow-up
+fit_total <- survfit(Surv(Survival_time,Status_live_death==0)~1,data = df_full)
+tbl_survfit(
+  fit_total,
+  probs=0.5,
+  label_header = "**Median followup Years (95% CI)**"
+)
+
+fit_total
+
+summary(fit_total)
+
+tbl_survfit_ex1 <- tbl_survfit(
+  fit_total,
+  times = c(5),
+  label_header = "**{time} Years**"
+)
+
+
+fit <- prodlim(Surv(PFS_trunc,PFS_status)~New_score,data = df_new,reverse = T)
+
+
+surv_5YR <- summary(fit,times=5)
+df_new$New_score
