@@ -1,11 +1,7 @@
 ######################
-### Project Name
+### Data Cleaning  ###
 ######################
 
-#This Project is for
-
-#Made by:
-#Date:
 
 
 ###############
@@ -23,16 +19,13 @@ height <-  2160
 width <- 3840
 res = 300
 
-###################
-### Source Code ###
-###################
-#Cleans the data
-#source("./Scripts/DaetaCleaning.r")
+#################
+### Functions ###
+#################
 
 
-
-
-
-
+#################
+### Load Data ###
+#################
 
 

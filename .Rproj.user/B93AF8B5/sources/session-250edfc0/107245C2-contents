@@ -24,7 +24,7 @@ MakeProject <- function(Path=getwd()){
   #R-Package position
   Package_path <- system.file(package="ProjectSetup")
 
-browser()
+
   #Creates folders
   dir.create(paste0(Path,"/Documents"))
   dir.create(paste0(Path,"/Scripts"))
