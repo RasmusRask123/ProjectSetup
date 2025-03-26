@@ -30,8 +30,8 @@ MakeProject <- function(Path=getwd()){
   dir.create(paste0(Path,"/Data/GeneratedData"))
 
   #Create some script
-  file.copy(from = paste0(Package_path,"Data/Master.r"),to = paste0(Path,"/Scripts/Master.r"))
-  file.copy(from = paste0(Package_path,"Data/DataCleaning.r"),to = paste0(Path,"/Scripts/DataCleaning.r"))
+  file.copy(from = paste0(Package_path,"./Data_scripts/Master.r"),to = paste0(Path,"./Scripts/Master.R"))
+  file.copy(from = paste0(Package_path,"./Data_scripts/DataCleaning.r"),to = paste0(Path,"./Scripts/DataCleaning.R"))
 
 
 }

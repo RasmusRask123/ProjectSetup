@@ -1,0 +1,16 @@
+library(devtools)
+install_github("RasmusRask123/ProjectSetup")
+library(ProjectSetup)
+
+
+
+MakeProject()
+
+
+
+Package_path<- system.file(package="ProjectSetup")
+
+file.copy(from = paste0(Package_path,"./Data_scripts/Master.R"),to = paste0("./Scripts/Master.r"),)
+
+file.create(paste0(Package_path,"Data_scripts/Master.R"))
+C:/Users/rasmu/AppData/Local/R/win-library/4.4/ProjectSetup
