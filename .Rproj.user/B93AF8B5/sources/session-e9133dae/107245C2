@@ -3,7 +3,7 @@
     "path": "C:/Users/rasmu/OneDrive/Skrivebord/R ting/ProjectSetup/R/hello.R",
     "project_path": "R/hello.R",
     "type": "r_source",
-    "hash": "1091872715",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1717445877054.0,
@@ -12,8 +12,8 @@
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "38,0",
-        "scrollLine": "15"
+        "cursorPosition": "39,0",
+        "scrollLine": "0"
     },
     "folds": "",
     "lastKnownWriteTime": 1717857586,
